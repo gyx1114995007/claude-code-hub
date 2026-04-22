@@ -1,10 +1,12 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json ./
-RUN npm install --legacy-peer-deps
+ENV NODE_ENV=development
+RUN npm install --include=dev --legacy-peer-deps
 
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV NODE_ENV=development
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
