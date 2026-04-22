@@ -1,28 +1,23 @@
-# syntax=docker/dockerfile:1
-FROM oven/bun:debian AS deps
+FROM node:18-alpine AS deps
 WORKDIR /app
-COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
+COPY package*.json ./
+RUN npm ci
 
-FROM oven/bun:debian AS builder
+FROM node:18-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV CI=true
-RUN --mount=type=cache,target=/app/.next/cache bun run build
+RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:18-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=3000
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+USER nextjs
 EXPOSE 3000
-
-# 关键：确保复制了所有必要的文件，特别是 drizzle 文件夹
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/VERSION ./VERSION
-
 CMD ["node", "server.js"]
